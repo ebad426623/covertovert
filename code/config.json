@@ -2,7 +2,6 @@
   "covert_channel_code": "CSC-PSV-DNS-RCF",
   "send": {
     "parameters": {
-      "delay": 0.01,
       "receiverIP": "172.18.0.3",
       "log_file_name": "RCODE_DNS_Sender.log"
     }

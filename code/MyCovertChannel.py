@@ -2,7 +2,6 @@ from CovertChannelBase import CovertChannelBase
 from scapy.all import IP, UDP, DNS, sniff
 import warnings
 import random
-import time
 
 class MyCovertChannel(CovertChannelBase):
     """
@@ -14,7 +13,7 @@ class MyCovertChannel(CovertChannelBase):
         - You can edit __init__.
         """
         pass
-    def send(self, log_file_name, delay, receiverIP):
+    def send(self, log_file_name, receiverIP):
         """
         
         --- First, we will explain our approach. We selected the covert channel: 
@@ -67,10 +66,9 @@ class MyCovertChannel(CovertChannelBase):
             message, not a query (qr = 0) message. Using query messages with RCODE would arouse suspicion,
             so we decided to use response message so our covert channel is more "covert".
         
-        - Lastly, we embed our encoded RCODE into the DNS packet and send it. After sending each packet,
-            we wait for a very short time before sending another packet as to not overwhelm the receiver.
-            In our testing, if we sent each packet without waiting, the receiver was not able to receive
-            all the sent packets and dropped some, this resulted in incomplete transmission of data.
+        - Lastly, we embed our encoded RCODE into the DNS packet and send it. First, we had implemented
+            a delay of 0.01 seconds in between each packet, but later we realized we could use stop_filter
+            in the receiver so we don't drop any packets
             
         
         """
@@ -122,7 +120,6 @@ class MyCovertChannel(CovertChannelBase):
             )
             
             super().send(packet)
-            time.sleep(delay)
 
 
 
@@ -149,8 +146,8 @@ class MyCovertChannel(CovertChannelBase):
         - In the sniff function, we are filtering incoming packets by udp and port number 53,
             as we are sending packets through udp in the sender, and DNS uses port 53 for communication.
         
-        - Additionally, we are sniffing one packet at a time, as we do not know when we will receive 
-            "." end of communication, so we cant sniff more than one packet at a time.
+        - Additionally, we are sniffing using stop_filter, which basically tells it to stop sniffing once
+            we encounter a "." in the received transmission.
         
         - When we receive a packet through sniffing, the "handle_packet" function is called. This
             function basically decodes the RCODE in the incoming DNS packet. I will explain in detail:
@@ -183,7 +180,7 @@ class MyCovertChannel(CovertChannelBase):
             to store the next incoming character.
         
         - If the character we received is a ".", it means that communication has ended, so we can set
-            "receiving" variable to False, so we can stop sniffing.
+            "stop" variable to True, so we can stop sniffing.
             
         - In the end, we log the received decoded message.
         
@@ -193,7 +190,7 @@ class MyCovertChannel(CovertChannelBase):
         
         # defining state variables
         message = ""    # final encoded messaged that is received
-        receiving = True    # true until we receive "." indicating end of message
+        stop = False    # false until we receive "." indicating end of message
         bits = ""   # string of bits received, when length is 8 it will be turned into char and cleared
         
         
@@ -203,7 +200,7 @@ class MyCovertChannel(CovertChannelBase):
             
             # importing the above defined state variables
             nonlocal message
-            nonlocal receiving
+            nonlocal stop
             nonlocal bits
             
             
@@ -240,12 +237,14 @@ class MyCovertChannel(CovertChannelBase):
                 
                 # if "." is encountered, indicating end of message
                 if (message[-1] == '.'):
-                    receiving = False
+                    stop = True
 
-
-        # looping to receive dns packets, dns has port 53 so using port 53 to filter
-        while (receiving):
-            sniff(filter="udp port 53", prn=handle_packet, count = 1)
+        
+        def stopfilter(_):
+            return stop
+        
+        # receiving dns packets until ".", dns has port 53 so using port 53 to filter
+        sniff(filter="udp port 53", prn=handle_packet, stop_filter = stopfilter)
         
         # in the end, log the received message
         self.log_message(message, log_file_name)

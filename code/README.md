@@ -21,10 +21,19 @@ Additionally, being able to use two different codes for the same bit (for exampl
 We considered many different functions to encode our message, like even for 0 and odd for 1, or less than 8 for 0 and greater than 8 for 1, etc. But we settled on XOR as it seemed the most complex out of them, and it also allowed us to encode 2 bits in the 4-bit RCODE field.
 Additionally, we decided to use UDP over TCP to transport the DNS packet, for its faster speed.
 When creating the DNS packet, we let most of the fields be default since we did not need to set them, and by Occam's razor (don't complicate something when keeping it simpler is better), we only set the DNS packet to "response" mode and we set the RCODE field for the actual encoding.
-Initially, we did not wait before sending consecutive packets, but from our testing, the receiver did not have enough time to process them, and thus was dropping packets randomly, so we decided to add a very slight delay after sending each packet to give the receiver enough time to process all the sent packets. The delay is taken in as a parameter in the "send" function, and can be increased at the cost of speed if the channel is still dropping packets on your system, but for our system a delay of 10 milliseconds was enough.
+Initially, we were using "count = 1" with a loop in the receiver's sniff function, and we did not wait before sending consecutive packets, so from our testing, the receiver did not have enough time to process them, and thus was dropping packets randomly, so we decided to add a very slight delay of 10 milliseconds after sending each packet to give the receiver enough time to process all the sent packets.
+However, later we realized we can use the "stop_filter" functionality of the sniff function to receive all packets without having to delay our packets, so we implemented that.
+
+
+
+
+3) Covert channel capacity:
+I sent 128 bits over the channel multiple times, and noted the time taken using time.time(). The average time taken on my system was: 1.65 seconds.
+This means the average covert channel capacity in bits per second is 128/1.65 = 77.58 bits per second.
+The result is not too bad, considering we are transferring only two bits per packet. Since we are transferring the packets as soon as we create them, and the payload is mostly empty, there is not much we can do to improve the channel capacity.
 
 
 
 
 
-3) Conclusion: overall, this assignment was extremely informative as well as fun to code and experiment with. Due to this, I also implemented another covert channel privately using delays between packets to encode information rather than using header fields.
+4) Conclusion: overall, this assignment was extremely informative as well as fun to code and experiment with. Due to this, I also implemented another covert channel privately using delays between packets to encode information rather than using header fields.
