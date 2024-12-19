@@ -1,5 +1,5 @@
 from CovertChannelBase import CovertChannelBase
-from scapy.all import IP, UDP, DNS
+from scapy.all import IP, UDP, DNS, sniff
 import warnings
 import random
 import time
@@ -78,4 +78,63 @@ class MyCovertChannel(CovertChannelBase):
         - In this function, you are expected to receive and decode the transferred message. Because there are many types of covert channels, the receiver implementation depends on the chosen covert channel type, and you may not need to use the functions in CovertChannelBase.
         - After the implementation, please rewrite this comment part to explain your code basically.
         """
-        self.log_message("", log_file_name)
+        
+        
+        # defining state variables
+        message = ""    # final encoded messaged that is received
+        receiving = True    # true until we receive all the prelim packets defining the message length
+        bits = ""   # string of bits received, when length is 8 it will be turned into char and cleared
+        
+        
+        
+        # callback to handle received packet
+        def handle_packet(packet):
+            
+            # importing the above defined state variables
+            nonlocal message
+            nonlocal receiving
+            nonlocal bits
+            
+            
+            
+            # if source is anything but the sender, ignore it
+            if packet[IP].src != "172.18.0.2":
+                return
+            
+            # if packet doesn't have a DNS layer, ignore it to avoid errors later in the code
+            if not packet.haslayer(DNS):
+                return
+            
+            
+            # extracting rcode, and converting it into 4-bit binary
+            rcode = packet[DNS].rcode
+            rcodeBin = ""
+            
+            
+            for _ in range(4):  # finding each bit and 4 bits, so range(4)
+                rcodeBin = str(rcode%2) + rcodeBin
+                rcode //= 2
+            
+            
+            # extracting bits
+            bit1 = int(rcodeBin[0]) ^ int(rcodeBin[1])
+            bit2 = int(rcodeBin[2]) ^ int(rcodeBin[3])
+            
+            bits += str(bit1) + str(bit2)
+            
+            # if an entire char is created
+            if (len(bits) == 8):
+                message += self.convert_eight_bits_to_character(bits)
+                bits = ""
+                
+                # if "." is encountered, indicating end of message
+                if (message[-1] == '.'):
+                    receiving = False
+
+
+        # looping to receive dns packets, dns has port 53 so using port 53 to filter
+        while (receiving):
+            sniff(filter="udp port 53", prn=handle_packet, count = 1)
+        
+        # in the end, log the received message
+        self.log_message(message, log_file_name)
